@@ -21,7 +21,7 @@ dataset. Each file has the following format:
 }
 """
 
-from typing import List, Tuple, Generator
+from typing import List, Tuple, Generator, Optional
 from collections import namedtuple
 import itertools
 from abc import ABC, abstractmethod
@@ -58,6 +58,7 @@ def partial_arg_parser():
     args = argparse.ArgumentParser()
     args.add_argument("--dataset", type=str, required=True)
     args.add_argument("--dataset-split", type=str, required=True)
+    args.add_argument("--dataset-config", type=str)
     args.add_argument("--output-dir", type=Path, required=True)
     args.add_argument("--completion-limit", type=int, default=200)
     args.add_argument(
@@ -158,6 +159,7 @@ class GeneratorBase(ABC):
         self,
         dataset: str,
         dataset_split: str,
+        dataset_config: Optional[str],
         output_dir: Path,
         completion_limit: int,
         batch_size: int,
@@ -168,6 +170,7 @@ class GeneratorBase(ABC):
     ):
         self.__dataset = dataset
         self.__dataset_split = dataset_split
+        self.__dataset_config = dataset_config
         self.__output_dir = output_dir.resolve()
         self.__completion_limit = completion_limit
         self.__batch_size = batch_size
@@ -182,7 +185,10 @@ class GeneratorBase(ABC):
         the full path to the file that should contain the completions for that
         prompt.
         """
-        dataset = datasets.load_dataset(self.__dataset, split=self.__dataset_split)
+        dataset = datasets.load_dataset(
+            self.__dataset,
+            name=self.__dataset_config,
+            split=self.__dataset_split)
 
         return [
             PromptPath(

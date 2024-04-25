@@ -56,3 +56,57 @@ the BigCode Evaluation Harness.
      --n_samples 20 \
      --allow_code_execution 
    ```
+
+### MultiPL-E Lua with Llama 3 Instruct
+
+To use MultiPL-E, you will probably want to use the MultiPL-E execution
+container. But, for this example, it is quite easy to install Lua and luaunit
+locally.
+
+```
+python3 -m batched_lm_generation.automodel_chatcoder \
+    --model-name /mnt/ssd/cassano.f/llama-3-8b-instruct \
+    --dataset nuprl/MultiPL-E \
+    --dataset-config humaneval-lua \
+    --dataset-split test \
+    --output-dir lua_llama3_8b_instruct \
+    --temperature 0.2 \
+    --batch-size 100 \
+    --completion-limit 20
+python3 -m batched_lm_generation.bigcode_format \
+    lua_llama3_8b_instruct \
+    generations_multiple_lua.json
+python3 bigcode-evaluation-harness/main.py \
+     --tasks multiple-lua \
+     --load_generations_path generations_multiple_lua.json \
+     --n_samples 20 \
+     --allow_code_execution     
+```
+
+### StudentEval with Phi-3-Mini-128k-Instruct
+
+The StudentEval dataset includes some prompts that are not part of the
+StudentEval benchmark. They are [filtered out](https://github.com/bigcode-project/bigcode-evaluation-harness/blob/main/bigcode_eval/tasks/studenteval.py#L99) in
+the BigCode Evaluation Harness, and we need to generate completions for this
+filtered set. The code below uses a prefiltered set.
+
+```
+python3 -m batched_lm_generation.automodel_chatcoder \
+    --model-name microsoft/Phi-3-mini-128k-instruct \
+    --dataset arjunguha/StudentEval-Filtered \
+    --dataset-split test \
+    --output-dir studenteval_phi3mini128k_instruct \
+    --temperature 0.2 \
+    --batch-size 100 \
+    --completion-limit 20
+python3 -m batched_lm_generation.bigcode_format \
+    studenteval_phi3mini128k_instruct \
+    generations_studenteval.json
+python3 bigcode-evaluation-harness/main.py \
+     --tasks studenteval \
+     --load_generations_path generations_studenteval.json \
+     --n_samples 20 \
+     --allow_code_execution
+```
+
+A limitation of the StudentEval 
