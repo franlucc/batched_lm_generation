@@ -109,4 +109,29 @@ python3 bigcode-evaluation-harness/main.py \
      --allow_code_execution
 ```
 
-A limitation of the StudentEval 
+### StudentEval with StarCoder2-15b
+
+See the caveat about the StudentEval dataset above. Notice that the example
+below specifies stop sequences with `--stop` and explicitly includes the prompt
+in the output with `--include-prompt`.
+
+```
+python3 -m batched_lm_generation.automodel_base \
+    --model-name bigcode/starcoder2-15b \
+    --dataset arjunguha/StudentEval-Filtered \
+    --dataset-split test \
+    --output-dir studenteval_starcoder2_15b \
+    --temperature 0.2 \
+    --batch-size 50 \
+    --completion-limit 20 \
+    --include-prompt \
+    --stop '[ "\ndef", "\nclass", "\nif", "\nprint"  ]'
+python3 -m batched_lm_generation.bigcode_format \
+    studenteval_starcoder2_15b \
+    generations_studenteval.json
+python3 bigcode-evaluation-harness/main.py \
+     --tasks studenteval \
+     --load_generations_path generations_studenteval.json \
+     --n_samples 20 \
+     --allow_code_execution
+```

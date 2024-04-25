@@ -5,6 +5,7 @@ MultiPL-E:
 https://github.com/nuprl/MultiPL-E/blob/main/automodel.py
 
 """
+
 from .base import GeneratorBase, partial_arg_parser, stop_at_stop_token
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import List
@@ -19,10 +20,13 @@ class AutoModelGenerator(GeneratorBase):
     tokenizer: AutoTokenizer
     model: AutoModelForCausalLM
 
-    def __init__(self, model_name: str, model_kwargs, **super_args):
+    def __init__(
+        self, model_name: str, include_prompt: str, model_kwargs, **super_args
+    ):
         super().__init__(**super_args)
         self.model_name = model_name
         self.model_kwargs = model_kwargs
+        self.include_prompt = include_prompt
 
     def init_model(self):
         self.tokenizer = AutoTokenizer.from_pretrained(
@@ -146,18 +150,26 @@ class AutoModelGenerator(GeneratorBase):
             temperature,
             top_p,
         )
-        return [
+        output_texts = [
             stop_at_stop_token(
                 self.decode_single_output(output_tensor, prompt),
                 stop,
             )
             for (prompt, output_tensor) in zip(prompts, output_tensors)
         ]
+        if self.include_prompt:
+            output_texts = [prompt + text for prompt, text in zip(prompts, output_texts)]
+        return output_texts
 
 
 def main():
     parser = partial_arg_parser()
     parser.add_argument("--model-name", type=str, required=True)
+    parser.add_argument(
+        "--include-prompt",
+        action="store_true",
+        help="Includes the prompt in the stored completions",
+    )
     parser.add_argument("--flash-attention2", action="store_true")
     parser.add_argument(
         "--stop", type=str, required=True, help="JSON list of stop tokens"
@@ -172,10 +184,12 @@ def main():
     super_args = {
         k: v
         for (k, v) in vars(args).items()
-        if k not in ["model_name", "flash_attention2"]
+        if k not in ["model_name", "flash_attention2", "include_prompt"]
     }
 
-    generator = AutoModelGenerator(args.model_name, model_kwargs, **super_args)
+    generator = AutoModelGenerator(
+        args.model_name, args.include_prompt, model_kwargs, **super_args
+    )
     generator.generate_all()
 
 
