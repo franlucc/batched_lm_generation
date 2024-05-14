@@ -77,6 +77,11 @@ def partial_arg_parser():
         help="Top-p value for sampling",
     )
     args.add_argument("--temperature", type=float, required=True)
+    args.add_argument(
+        "--dataset-limit",
+        type=int,
+        help="Limit the number of prompts to process",
+    )
     return args
 
 
@@ -160,6 +165,7 @@ class GeneratorBase(ABC):
         dataset: str,
         dataset_split: str,
         dataset_config: Optional[str],
+        dataset_limit: Optional[int],
         output_dir: Path,
         completion_limit: int,
         batch_size: int,
@@ -172,6 +178,7 @@ class GeneratorBase(ABC):
         self.__dataset_split = dataset_split
         self.__dataset_config = dataset_config
         self.__output_dir = output_dir.resolve()
+        self.__dataset_limit = dataset_limit
         self.__completion_limit = completion_limit
         self.__batch_size = batch_size
         self.__max_tokens__ = max_tokens
@@ -189,6 +196,8 @@ class GeneratorBase(ABC):
             self.__dataset,
             name=self.__dataset_config,
             split=self.__dataset_split)
+        if self.__dataset_limit:
+            dataset = dataset.select(range(self.__dataset_limit))
 
         return [
             PromptPath(
