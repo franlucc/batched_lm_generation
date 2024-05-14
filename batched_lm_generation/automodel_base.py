@@ -13,6 +13,11 @@ import torch
 import itertools
 import json
 
+# Check for GPU availability, switch to CPU if not available, and print a warning
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+if DEVICE == "cpu":
+    print("Warning: CUDA not available. Switching to CPU mode.")
+
 
 class AutoModelGenerator(GeneratorBase):
     model_name: str
@@ -55,7 +60,7 @@ class AutoModelGenerator(GeneratorBase):
             self.model_name,
             torch_dtype=torch.bfloat16,
             **self.model_kwargs,
-            device_map="cuda"
+            device_map=DEVICE,
         )
         self.model.eval()
 
