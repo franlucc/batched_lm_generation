@@ -57,7 +57,7 @@ the BigCode Evaluation Harness.
      --allow_code_execution 
    ```
 
-### MultiPL-E Lua with Llama 3 Instruct
+### MultiPL-E Lua with Llama 3 Instruct (BigCode Evaluation Harness Execution)
 
 To use MultiPL-E, you will probably want to use the MultiPL-E execution
 container. But, for this example, it is quite easy to install Lua and luaunit
@@ -134,6 +134,27 @@ python3 bigcode-evaluation-harness/main.py \
      --load_generations_path generations_studenteval.json \
      --n_samples 20 \
      --allow_code_execution
+```
+
+### MultiPL-E with Llama 3 Instruct (without BigCode Evaluation Harness)
+
+This example uses Racket.
+
+```bash
+python3 -m batched_lm_generation.automodel_chatcoder \
+    --model-name meta-llama/Llama-3-8B-Instruct \
+    --dataset nuprl/MultiPL-E \
+    --dataset-config humaneval-rkt \
+    --dataset-split test \
+    --output-dir out \
+    --temperature 0.2 \
+    --batch-size 100 \
+    --completion-limit 20 \
+    --extra-columns name,language,tests
+
+python3 -m batched_lm_generation.multiple_format out converted
+
+podman run --rm --network none -v ./converted:/data:rw multipl-e-eval --dir /data --output-dir /data
 ```
 
 ## Running Tests
