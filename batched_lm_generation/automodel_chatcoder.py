@@ -30,7 +30,10 @@ import torch
 def prompt_to_messages(prompt: str) -> List[dict]:
     return [
         {"role": "system", "content": "You are an expert programmer."},
-        {"role": "user", "content": f"Complete the following function:\n\n```\n{prompt}\n```"},
+        {
+            "role": "user",
+            "content": f"Complete the following function:\n\n```\n{prompt}\n```",
+        },
     ]
 
 
@@ -65,12 +68,14 @@ class CustomStoppingCriteria(StoppingCriteria):
 class ChatCoder(GeneratorBase):
     model_name: str
     model_kwargs: dict
+    include_prompt: bool
     tokenizer: AutoTokenizer
     model: AutoModelForCausalLM
 
-    def __init__(self, model_name: str, **super_args):
+    def __init__(self, model_name: str, include_prompt: bool, **super_args):
         super().__init__(**super_args)
         self.model_name = model_name
+        self.include_prompt = include_prompt
 
     def init_model(self):
         self.model = AutoModelForCausalLM.from_pretrained(
@@ -128,18 +133,32 @@ class ChatCoder(GeneratorBase):
         # LANG\n. This strips that out.
         output_texts = [t.split("\n", maxsplit=1)[1] for t in output_texts]
         output_texts = [stop_at_stop_token(t, ["\n```"]) for t in output_texts]
+        # Remove the prompt by default
+        if self.include_prompt == False:
+            for i, prompt in enumerate(prompts):
+                output_texts[i] = output_texts[i][len(prompt) :]
         return output_texts
 
 
 def main():
     parser = partial_arg_parser()
     parser.add_argument("--model-name", type=str, required=True)
+    parser.add_argument(
+        "--include-prompt",
+        action="store_true",
+        help="Includes the prompt in the stored completions",
+    )
     args = parser.parse_args()
 
-    EXTRA_ARGS = ["model_name"]
+    EXTRA_ARGS = ["model_name", "include_prompt"]
     super_args = {k: v for (k, v) in vars(args).items() if k not in EXTRA_ARGS}
 
-    generator = ChatCoder(model_name=args.model_name, stop=[], **super_args)
+    generator = ChatCoder(
+        model_name=args.model_name,
+        include_prompt=args.include_prompt,
+        stop=[],
+        **super_args,
+    )
     generator.generate_all()
 
 
