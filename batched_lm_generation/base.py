@@ -151,11 +151,11 @@ def _batch_prompts(
             # We need to split the prompt across batches.
             take_count = batch_size - batch_count
             drop_count = prompt.count - take_count
-            batch.append(PromptPathCount(prompt.prompt, prompt.path, take_count))
+            batch.append(PromptPathCount(prompt.prompt, prompt.path, take_count,prompt.extras))
             yield batch
             batch = []
             batch_count = 0
-            prompt = PromptPathCount(prompt.prompt, prompt.path, drop_count)
+            prompt = PromptPathCount(prompt.prompt, prompt.path, drop_count,prompt.extras)
         batch.append(prompt)
         batch_count += prompt.count
 
