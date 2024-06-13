@@ -205,7 +205,8 @@ class GeneratorBase(ABC):
         self.__stop = stop
         prompt_keys = prompt_keys.split(",")
         self.__prompt_keys = prompt_keys
-        self.__extra_columns = extra_columns.split(",")
+        # "".split(",") == [""] which is not what we want.
+        self.__extra_columns = extra_columns.split(",") if len(extra_columns) != 0 else []
 
     def __prompts_with_paths(self) -> List[PromptPath]:
         """
