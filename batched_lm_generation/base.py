@@ -17,10 +17,14 @@ dataset. Each file has the following format:
     "top_p": TOP_P,
     "max_tokens": MAX_TOKENS,
     "stop_tokens": [ STOP_TOKEN ... ],
+    "extras": EXTRAS,
     "completions": [ { "count": NUMBER, "text": COMPLETION } ... ],
 }
+
+Where EXTRAS is a dictionary.
 """
 
+# cspell:ignore tqdm
 from typing import List, Tuple, Generator, Optional
 from collections import namedtuple
 import itertools
@@ -33,9 +37,9 @@ from pathlib import Path
 from tqdm.auto import tqdm
 from .util import read_json_gz
 
-PromptPath = namedtuple("PromptPath", ["prompt", "path"])
+PromptPath = namedtuple("PromptPath", ["prompt", "path", "extras"])
 
-PromptPathCount = namedtuple("PromptPathCount", ["prompt", "path", "count"])
+PromptPathCount = namedtuple("PromptPathCount", ["prompt", "path", "count", "extras"])
 
 
 def stop_at_stop_token(decoded_string, stop_tokens):
@@ -83,8 +87,17 @@ def partial_arg_parser():
         help="Limit the number of prompts to process",
     )
     args.add_argument(
-        "--prompt-keys", type=str, default='prompt',
-        help="Comma-separated names of columns in the dataset to use for the prompt")
+        "--prompt-keys",
+        type=str,
+        default="prompt",
+        help="Comma-separated names of columns in the dataset to use for the prompt",
+    )
+    args.add_argument(
+        "--extra-columns",
+        type=str,
+        default="",
+        help="Comma-separated names of columns in the dataset to include in the completions file",
+    )
     return args
 
 
@@ -96,7 +109,7 @@ def _explode_batch(batch_with_count: List[PromptPathCount]) -> List[PromptPath]:
     result = []
     for item in batch_with_count:
         for _ in range(item.count):
-            result.append(PromptPath(item.prompt, item.path))
+            result.append(PromptPath(item.prompt, item.path, item.extras))
     return result
 
 
@@ -152,7 +165,7 @@ def _batch_prompts(
 
 class GeneratorBase(ABC):
     """
-    Inherit from this class to generate completions with a particular framework 
+    Inherit from this class to generate completions with a particular framework
     or model. The subclass should implement the following methods:
 
     1. batch_generate: Generates a batch of completions for a list of prompts.
@@ -176,7 +189,8 @@ class GeneratorBase(ABC):
         top_p: float,
         temperature: float,
         stop: List[str],
-        prompt_keys: List[str], 
+        prompt_keys: List[str],
+        extra_columns: str,
     ):
         self.__dataset = dataset
         self.__dataset_split = dataset_split
@@ -191,6 +205,7 @@ class GeneratorBase(ABC):
         self.__stop = stop
         prompt_keys = prompt_keys.split(",")
         self.__prompt_keys = prompt_keys
+        self.__extra_columns = extra_columns.split(",")
 
     def __prompts_with_paths(self) -> List[PromptPath]:
         """
@@ -199,20 +214,21 @@ class GeneratorBase(ABC):
         prompt.
         """
         dataset = datasets.load_dataset(
-            self.__dataset,
-            name=self.__dataset_config,
-            split=self.__dataset_split)
+            self.__dataset, name=self.__dataset_config, split=self.__dataset_split
+        )
         if self.__dataset_limit:
             dataset = dataset.select(range(self.__dataset_limit))
 
         return [
             PromptPath(
-                prompt=item[self.__prompt_keys[0]] if len(self.__prompt_keys) == 1 else tuple(item[p] for p in self.__prompt_keys),
-                path=self.__output_dir / f"Item_{i}.json.gz"
+                prompt=item[self.__prompt_keys[0]]
+                if len(self.__prompt_keys) == 1
+                else tuple(item[p] for p in self.__prompt_keys),
+                path=self.__output_dir / f"Item_{i}.json.gz",
+                extras={key: item[key] for key in self.__extra_columns},
             )
             for i, item in enumerate(dataset)
         ]
-
 
     def __remaining_prompts(self) -> Tuple[int, List[PromptPathCount]]:
         """
@@ -221,7 +237,7 @@ class GeneratorBase(ABC):
         """
         num_remaining = 0
         remaining = []
-        for prompt, path in self.__prompts_with_paths():
+        for prompt, path, extras in self.__prompts_with_paths():
             if not path.exists():
                 this_num_remaining = self.__completion_limit
             else:
@@ -234,7 +250,9 @@ class GeneratorBase(ABC):
 
             if this_num_remaining > 0:
                 num_remaining += this_num_remaining
-                remaining.append(PromptPathCount(prompt, path, this_num_remaining))
+                remaining.append(
+                    PromptPathCount(prompt, path, this_num_remaining, extras)
+                )
 
         return num_remaining, remaining
 
@@ -273,6 +291,7 @@ class GeneratorBase(ABC):
             batch = _explode_batch(batch_with_count)
             prompts = [item.prompt for item in batch]
             paths = [item.path for item in batch]
+            extras = [item.extras for item in batch]
             completions = self.batch_generate(
                 prompts,
                 self.__top_p__,
@@ -284,24 +303,26 @@ class GeneratorBase(ABC):
                 prompts
             ), f"bug in batch_generate: expected {len(prompts)} completions, got {len(completions)}"
             assert type(completions[0]) == str
-            groups = sorted(zip(paths, prompts, completions), key=lambda x: x[0])
+            groups = sorted(zip(paths, prompts, completions, extras), key=lambda x: x[0])
             for path, group in itertools.groupby(groups, key=lambda x: x[0]):
                 group = list(group)
                 new_completions = [x[2] for x in group]
                 prompts = [x[1] for x in group]
                 # assert len(set(prompts)) == 1
                 the_prompt = prompts[0]
+                the_extras = group[0][3]
                 if path.exists():
                     completions_data = read_json_gz(path)
                 else:
                     completions_data = {
-                        "prompt": [ p for p in the_prompt if type(p) == str ],
+                        "prompt": the_prompt if type(the_prompt) == str else [p for p in the_prompt if type(p) == str],
                         "temperature": self.__temperature__,
                         "completions": [],
                         "top_p": self.__top_p__,
                         "max_tokens": self.__max_tokens__,
+                        "extras": the_extras,
                     }
-                    
+
                 _merge_completions(completions_data, new_completions)
                 with gzip.open(path, "wt") as f:
                     json.dump(completions_data, f, indent=4)
