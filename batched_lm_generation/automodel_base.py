@@ -78,9 +78,10 @@ class AutoModelGenerator(GeneratorBase):
             padding=True,
             return_tensors="pt",
             return_token_type_ids=False,
-            truncation=True,
-            max_length=max_length - 1,
+            truncation=False,
         ).to(self.model.device)
+        prompt_length = inputs.input_ids.shape[1]
+        assert prompt_length < max_length, f"Prompt is too long: input has length {prompt_length}"
 
         with torch.no_grad():
             output = self.model.generate(
