@@ -98,6 +98,11 @@ def partial_arg_parser():
         default="",
         help="Comma-separated names of columns in the dataset to include in the completions file",
     )
+    args.add_argument(
+        "--load-from-disk",
+        action="store_true",
+        help="Load the dataset from disk instead of the Hugging Face Hub",
+    )
     return args
 
 
@@ -191,6 +196,7 @@ class GeneratorBase(ABC):
         stop: List[str],
         prompt_keys: List[str],
         extra_columns: str,
+        load_from_disk: bool,
     ):
         self.__dataset = dataset
         self.__dataset_split = dataset_split
@@ -207,6 +213,7 @@ class GeneratorBase(ABC):
         self.__prompt_keys = prompt_keys
         # "".split(",") == [""] which is not what we want.
         self.__extra_columns = extra_columns.split(",") if len(extra_columns) != 0 else []
+        self.__load_from_disk = load_from_disk
 
     def __prompts_with_paths(self) -> List[PromptPath]:
         """
@@ -214,9 +221,15 @@ class GeneratorBase(ABC):
         the full path to the file that should contain the completions for that
         prompt.
         """
-        dataset = datasets.load_dataset(
-            self.__dataset, name=self.__dataset_config, split=self.__dataset_split
-        )
+        if self.__load_from_disk:
+            dataset = datasets.load_from_disk(
+                self.__dataset
+            )
+        else:
+            dataset = datasets.load_dataset(
+                self.__dataset, name=self.__dataset_config, split=self.__dataset_split
+            )
+        
         if self.__dataset_limit:
             dataset = dataset.select(range(self.__dataset_limit))
 
