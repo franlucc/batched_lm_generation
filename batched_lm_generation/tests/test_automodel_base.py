@@ -17,7 +17,7 @@ def test_automodel_base_generation_and_map():
         "--batch-size", "100",
         "--completion-limit", "20",
         "--dataset-limit", "2",
-        "--max-tokens", "5",
+        "--max-tokens", "250",
         "--stop", "[]"
     ], check=True)
 
